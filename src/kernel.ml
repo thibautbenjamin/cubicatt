@@ -139,11 +139,62 @@ struct
   let free_vars s =
     List.concat (List.map Tm.free_vars s.list)
 
-  let mk l src tgt = assert false
 
-  let apply_Tm s tm = assert false
+  let rec apply_list_var l tar x = 
+      match l,tar with
+      |_,_ when Ctx.is_empty tar ->
+        assert false
+      |t::l, _ ->
+        let open Tm in
+        let ((y,_),tar) = (Ctx.head tar, Ctx.tail tar) in
+        if y = x
+        then t
+        else apply_list_var l tar x
+      |[], _ -> assert false
+  and compose_lists src tar s s' =
+    List.rev (List.map (fun t -> apply_list_Tm s tar src t) s')
+  (** Apply a substitution to a term. *)
+  and apply_list_Tm s tar src tm =
+    let open Tm in
+    let e =
+      match tm with
+      |CVar x -> apply_list_var s tar x
+      |Sub (x,v,s') ->
+        let newtar = EnvVal.ctx v in 
+        Sub (x,v, Sub.mk (compose_lists src tar s s'.list) src newtar)
+      |App (t,i) -> App(apply_list_Tm s tar src t, i)
+    in e
+  (** Apply a substitution to a type. *)
+  and apply_list_Ty s tar src ty =
+    let open Ty in
+    let e = 
+      match ty with
+      | Obj -> Obj
+      | Path (i,a,u,v) ->
+         let a = apply_list_Ty s tar src a in
+         let u = apply_list_Tm s tar src u in
+         let v = apply_list_Tm s tar src v in Path(i,a,u,v)
+    in e
+                
+  let mk l src tgt =
+    let rec aux l (tgt : Ctx.t) =
+      match l,Ctx.value tgt with
+      |[],[] -> []
+      |(_::_,[] |[],_::_) -> raise NotValid
+      |t::s,_ -> 
+	let (x,u),tar = (Ctx.head tgt,Ctx.tail tgt) in
+	let s = aux s tar in 
+	let ty = Tm.infer [] src t in
+	let () = Ty.check_equal [] src ty (apply_list_Ty s tar src u)
+	in t::s
+    in {list = aux (List.rev l) tgt; src = src; tar = tgt}
 
-  let apply_Ty s ty = assert false 
+
+  let apply_Tm s tm =
+     apply_list_Tm s.list s.tar s.src tm
+
+  let apply_Ty s ty =
+    apply_list_Ty s.list s.tar s.src ty
 
   (** Check equality of substitutions. *)
   (* TODO : Check the sources too*)
@@ -223,9 +274,10 @@ struct
 
 
   (** type of a variable in a context. *)
-  let ty_var (ctx:t) x =
+  let ty_var (ctx:Ctx.t) x =
+    (* debug "looking up var %s in context %s" (CVar.to_string x) (Ctx.to_string ctx); *)
     try
-     List.assoc x ctx
+     List.assoc x (Ctx.value ctx)
     with
     | Not_found -> raise (UnknownId (CVar.to_string x))
 
@@ -554,7 +606,7 @@ struct
         if i = 0 then
           begin
           (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
-          List.hd (List.rev (slices_of_length len ctx))
+          List.rev(List.hd (List.rev (slices_of_length len ctx)))
                   (* fst (chop ctx len) *)
           end
         else
@@ -574,7 +626,7 @@ struct
         if i = 0 then
           begin
           (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
-          List.hd (List.tl (slices_of_length len ctx))
+          List.rev(List.hd (List.tl (slices_of_length len ctx)))
                   (* fst (chop ctx len) *)
           end
         else
@@ -786,23 +838,24 @@ struct
     | Path (_,a,_,_) -> check_tgt_var_in_dim i v a 
 
   let source i ty =
-    let rec src i l ty = 
+    let rec src i l ty =
+      (* debug "computing source of %s in dim %d" (to_string ty) i; *) 
       match ty with
       | Obj -> assert false
-      | Path (j,a,u,_) when i = 0 ->
+      | Path (j,a,u,_) when dim a = i ->
          l,u
       | Path(j,a,_,_) ->
-         src (i-1) (j::l) a
+         src i (j::l) a
     in src i [] ty
          
   let target i ty =
     let rec tgt i l ty = 
       match ty with
       | Obj -> assert false
-      | Path (j,a,_,u) when i = 0 ->
+      | Path (j,a,_,u) when i = dim a ->
          l,u
       | Path(j,a,_,_) ->
-         tgt (i-1) (j::l) a
+         tgt i (j::l) a
     in tgt i [] ty       
 end
 
@@ -840,7 +893,7 @@ struct
     match tm with
     | CVar x -> [x]
     | Sub (_,_,sub) -> Sub.free_vars sub
-    | _ -> assert false
+    | App(t,_) -> free_vars t
                      
   let rec to_string tm =
     match tm with
@@ -869,7 +922,9 @@ struct
     match tm,l with
     | CVar x,[] -> Ctx.ty_var ctx x
     | CVar x,_ -> failwith "the cubes must be strict"
-    | Sub (_,v,s),_ -> assert false
+    | Sub (_,v,s),_ ->
+       let ty = EnvVal.ty v in
+       Sub.apply_Ty s ty
     | App (t,r),l ->
        let l = match l with
        |i::l when i = r -> l
@@ -888,8 +943,8 @@ struct
     (* Ty.check_equal l ctx (infer l ctx e) t *)
 
   (** Create a term from an expression. *)
-  (* TODO: make for substituted coherences *)                    
-  let rec make l c e = 
+  let rec make l c e =
+    (* debug "making term %s in context %s and dim vars %s" (string_of_tm e) (Ctx.to_string c) (DVar.print_list l); *) 
     match e,l with
     | Var v,_ ->
        let e = CVar (CVar.make v) in let ty = infer l c e in  e,ty
@@ -898,6 +953,16 @@ struct
        let e = App (t,DVar.make r) in
        let ty = infer (r'::l) c e in
        e,ty
+    | Sub (t,s),_ ->
+      let s = List.map (Tm.make l c) s in
+      let v,t = match t with
+        |Var v -> let v = EVar.make v in v,Env.val_var v 
+        |_ -> assert false
+      in let ty = EnvVal.ty t in
+         let tar = EnvVal.ctx t in
+         let s = Sub.mk (List.map fst s) c tar in
+         let ty = Sub.apply_Ty s ty in
+         Sub(v,t,s), ty
     | _ -> assert false
     
   let rec sub_DVar l ctx tm i r =
@@ -944,11 +1009,7 @@ end
 =
 struct
   type t = PS.t * Ty.t
-	    
-  let check ps t = 
-    assert false
-  (* TODO : write the cubical coherence rules *)
-    
+	        
   let mk ps t =
     (* TODO : write a real typing rule *)
     let ty = Ty.make [] ps t in
@@ -958,6 +1019,7 @@ struct
     else
       let n = PS.dim ps in
       let rec check i =
+        (* debug "checking algebraicity in dim %d" i; *)
         if (i < 0) then ()
         else
           let pss = PS.source i ps in
@@ -966,6 +1028,9 @@ struct
           let pst = PS.target i ps in
           let l,tmt = Ty.target i ty in
           let tyt = Tm.infer l (Ctx.of_ps pst) tmt in
+          debug "in dim %d : \n the source ps is %s \n the source (term,ty) is (%s, %s)\n the target ps is %s \n the target (term,ty) is (%s, %s)"
+          i (PS.to_string pss) (Tm.to_string tms) (Ty.to_string tys) 
+               (PS.to_string pst)(Tm.to_string tmt) (Ty.to_string tyt);
           if (List.included (PS.vars pss) (List.union (Tm.free_vars tms) (Ty.free_vars tys))
               && List.included (PS.vars pst) (List.union  (Tm.free_vars tmt) (Ty.free_vars tyt)))
           then check (i - 1)
@@ -994,7 +1059,7 @@ and Env : sig
   val add_let_check : var -> (var * ty) list -> tm -> ty -> string
   val add_coh : var -> (var * ty) list -> ty -> unit
   val init : unit -> unit
-  val val_var : EVar.t -> int -> int list -> EVar.t * EnvVal.t
+  val val_var : EVar.t -> EnvVal.t
 end
   = GAssoc(EVar)(EnvVal) 
 
