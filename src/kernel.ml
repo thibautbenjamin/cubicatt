@@ -41,6 +41,7 @@ module CVar
     val to_string : t -> string
     val make : var -> t
     val to_var : t -> var
+    val compute_vars : (t*'a) list -> t list
 end
 =
 struct
@@ -51,7 +52,9 @@ struct
 	       
   let make v = v
 
-  let to_var v = v 
+  let to_var v = v
+
+  let compute_vars l = List.map fst l
 end
 
 module DVar
@@ -60,12 +63,14 @@ module DVar
          |Var of var
          |Z
          |O
+         |New of int
 
   val to_string : t -> string
   val make : var -> t
   val print_list : t list -> string
   val zero : t
   val one : t
+  val new_var : unit -> t
 end
 =
 struct
@@ -73,6 +78,9 @@ struct
     |Var of var
     |Z (* constant zero *)
     |O (* constant one *)
+    |New of int
+
+  let count = ref 0
               
   let to_string v =
     match v with
@@ -88,6 +96,8 @@ struct
 
   let zero = Z
   let one = O
+
+  let new_var ()  = incr(count); New !count
 end
 
   
@@ -350,26 +360,55 @@ struct
     |PStart, PStart -> ()
     |PExt(sh1,n1), PExt(sh2,n2) when n1 = n2 -> check_equal_shape sh1 sh2
     |_ -> assert false
-                
-                             
+
+  let rec check_src_vars l_vars ctx dim =
+    match l_vars,ctx with
+    |[], [] -> ()
+    |v::l_vars, (v',ty)::ctx ->
+      Ty.check_src_var_in_dim dim v ty;
+      check_src_vars l_vars ctx dim
+    |_,_ -> raise Invalid
+
+  let rec check_tgt_vars l_vars ctx dim =
+    match l_vars,ctx with
+    |[], [] -> ()
+    |v::l_vars, (v',ty)::ctx ->
+      Ty.check_tgt_var_in_dim dim v ty;
+      check_tgt_vars l_vars ctx dim
+    |_,_ -> raise Invalid
+
+  let rec print l =
+    match l with
+    |i::l -> Printf.sprintf "%d %s" i (print l)
+    |[] -> ""
+
+  let rec print_ctx_list l =
+    match l with
+    |(v,ty)::l ->
+      Printf.sprintf "(%s:%s) %s" (CVar.to_string v) (Ty.to_string ty) (print_ctx_list l)
+    |[] -> ""
+    
+    
+
   (** Create a pasting scheme from a context. *)
   let mk (l : Ctx.t) : t =
-    (* TODO : the algorithm for pasting scheme is not clean at all, and not finished *)
+    (* TODO : Clean this algorithm *)
     let rec count l dim_max dim_min res =
       match l with
       |[] -> res
-      |n::k::l when n = dim_max && k = dim_min ->
-        begin
+      |n::k::l when n = dim_min && k = dim_max ->
+        let res = 
           match res with
-          |a::res -> 0::(a+1::res)
+          |a::res -> 1::(a+1::res)
           |[] -> assert false
-        end
+        in count l dim_max dim_min res 
       |k::l ->
-        begin
+        let res = 
           match res with
           |a::res -> a+1::res
-          |[] -> assert false
-        end
+          |[] -> 1::[]
+        in
+        count l dim_max dim_min res
     in
     let  common l =
       let rec check l a =
@@ -382,7 +421,7 @@ struct
       |h::l -> check l h
     in
     let rec chop l k =
-      assert (k > 0);
+      assert (k >= 0);
       if k = 0 then [],l
       else
         match l with
@@ -390,22 +429,30 @@ struct
         |a::l -> let res = chop l (k-1) in
                  a::(fst res), snd res
     in
-    let rec chop_all l l_dim n_list =
+    let rec chop_all vars0 dim_glue l l_dim n_list =
       match n_list with
-      |[] -> (compute_shape l l_dim)::[]
+      |[] -> begin
+          match l with
+          |[] -> []
+          |_ -> assert false
+        end
       |n::n_list -> let chopped1, rest = chop l n in
                     let chopped1_dim, rest_dim = chop l_dim n in
                     let chopped2, rest = chop rest n in
-                    let chopped2_dim, rest_dim = chop l_dim n in
+                    let chopped2_dim, rest_dim = chop rest_dim n in
+                    let vars1 = CVar.compute_vars chopped1 in
+                    check_src_vars vars0 chopped2 dim_glue;
+                    check_tgt_vars vars1 chopped2 dim_glue;
                     (compute_shape chopped1 chopped1_dim) ::
                       (compute_shape chopped2 chopped2_dim) ::
-                        (chop_all rest rest_dim n_list)
+                        (chop_all vars1 dim_glue rest rest_dim n_list)
     and compute_shape l l_dim =
       match l with
       |[] -> raise Invalid
       |(x,ty)::[] -> PStart
       |_ ->
-        let cuts = List.rev (count l_dim (List.max l_dim) (List.min l_dim) []) in
+        let min = List.min l_dim and max = List.max l_dim in
+        let cuts = List.rev (count l_dim min max []) in
         let n = List.length cuts in
         let cuts =
           match cuts with
@@ -417,18 +464,19 @@ struct
         let shape_list =
           match cuts with
           |[] -> assert false
-          |k::_ -> let chopped,_ = chop l k in
-                   let chopped_dim,_  = chop l_dim k in
-                   (compute_shape chopped chopped_dim) :: (chop_all l l_dim cuts)
-                   (* TODO : check the variables in the last dmension*)   
+          |k::_ -> let chopped,l = chop l k in
+                   let chopped_dim,l_dim  = chop l_dim k in
+                   let vars = CVar.compute_vars chopped in
+                   (compute_shape chopped chopped_dim) :: (chop_all vars min l l_dim cuts)
         in  let sh = common shape_list in PExt(sh,n)
     in
-    let init l = 
+    let init l =
+      let l = List.rev l in
       match l with
       |[] -> raise Invalid
       |(x,ty)::[] when Ty.dim ty = 0 -> PStart (* Only type of dimension 0 is Obj *)
       |_::[] -> raise Invalid
-      |_ -> let list_dim  = (List.map (fun x -> Ty.dim (snd x))) (l :> (CVar.t * Ty.t) list) in
+      |_ -> let list_dim  = (List.map (fun x -> Ty.dim (snd x))) l in
             compute_shape l list_dim 
     in init (Ctx.value l), l
            
@@ -541,7 +589,10 @@ and Ty
   val check : DVar.t list -> Ctx.t -> t -> unit
   val check_equal : DVar.t list -> Ctx.t -> t -> t -> unit
   val make : DVar.t list -> Ctx.t -> ty -> t
-       
+
+  val check_src_var_in_dim : int -> CVar.t -> t -> unit
+  val check_tgt_var_in_dim : int -> CVar.t -> t -> unit
+                                                     
   val dim : t -> int
   val sub_DVar : DVar.t list -> Ctx. t -> t -> DVar.t -> DVar.t -> t
 end
@@ -575,17 +626,25 @@ struct
   let rec check_equal l ctx ty1 ty2 =
     let equal = check_equal l ctx in
     match ty1, ty2 with
-    |Obj,Obj -> ()
-    |Path(i1,t1,u1,v1),Path(i2,t2,u2,v2) ->
+    | Obj,Obj -> ()
+    | Path(i1,t1,u1,v1),Path(i2,t2,u2,v2) when i1 = i2 ->
       equal t1 t2; Tm.check_equal ctx u1 u2; Tm.check_equal ctx v1 v2
-    |(Obj |Path _),_ ->
+    | Path(i1,t1,u1,v1),Path(i2,t2,u2,v2) ->
+      equal t1 (Ty.sub_DVar l ctx t2 i2 i1); Tm.check_equal ctx u1 u2; Tm.check_equal ctx v1 v2
+    | (Obj |Path _),_ ->
       raise (NotEqual (to_string ty1, to_string ty2))
 
   let rec sub_DVar l ctx ty i r =
     match ty with
     | Obj -> Obj
-    | Path(j,a,t,u) -> if (r = j) then assert false
-                       else
+    | Path(j,a,t,u) when r = j ->
+                         let newdim = DVar.new_var () in
+                         let a = sub_DVar (newdim::l) ctx a i newdim in
+                         let a = sub_DVar (j::l) ctx a i r in
+                         let t = Tm.sub_DVar l ctx t i r in
+                         let u = Tm.sub_DVar l ctx u i r in
+                         Path(j,a,t,u)
+    | Path (j,a,t,u) ->
                          let a = sub_DVar (j::l) ctx a i r in
                          let t = Tm.sub_DVar l ctx t i r in
                          let u = Tm.sub_DVar l ctx u i r in
@@ -610,6 +669,20 @@ struct
     match ty with
     | Obj -> 0
     | Path(_,a,_,_) -> 1 + dim a
+
+  let rec check_src_var_in_dim i v ty =
+    match ty with
+    | Obj -> assert false 
+    | Path(_,a,u,_) when dim a = i -> Tm.check_var v u;
+    | Path (_,a,_,_) -> check_src_var_in_dim i v a
+
+  let rec check_tgt_var_in_dim i v ty =
+    match ty with
+    | Obj -> assert false 
+    | Path(_,a,_,u) when dim a = i -> Tm.check_var v u;
+    | Path (_,a,_,_) -> check_tgt_var_in_dim i v a 
+
+      
 end
 
 (** Operations on terms. *)
@@ -630,6 +703,7 @@ sig
   val make : DVar.t list -> Ctx.t -> tm -> t * Ty.t
 
   val sub_DVar : DVar.t list -> Ctx.t -> t -> DVar.t -> DVar.t -> t
+  val check_var : CVar.t -> t -> unit
 end
   =
 struct
@@ -664,7 +738,8 @@ struct
       else ()
     | Sub(x,v1,s1),Sub(y,v2,s2) ->
        EnvVal.check_equal v1 tm1 s1 v2 tm2 s2 ctx
-    | App(_,_), App(_,_) -> assert false
+    | App(t,r), App(t',r') when r = r' ->
+       check_equal ctx t t'
     | (CVar _|Sub _|App _),_ ->
        raise (NotEqual (to_string tm1, to_string tm2))
 
@@ -675,6 +750,10 @@ struct
     | CVar x,_ -> failwith "the cubes must be strict"
     | Sub (_,v,s),_ -> assert false
     | App (t,r),l ->
+       let l = match l with
+       |i::l when i = r -> l
+       |_ -> assert false
+       in
        let ty = infer l ctx t in
        match ty with
        |Ty.Path(i,a,u,v) -> Ty.sub_DVar l ctx a i r
@@ -696,7 +775,7 @@ struct
     | Sub (tm,(Var r)::[]),r'::l when (DVar.make r) = r' ->
        let t,_ = make l c tm in
        let e = App (t,DVar.make r) in
-       let ty = infer l c e in
+       let ty = infer (r'::l) c e in
        e,ty
     | _ -> assert false
     
@@ -715,7 +794,17 @@ struct
          |DVar.O -> tgt
          |_ -> App (t,r)
        end
-    | App (t,j) -> assert false
+    | App (t,j) -> let l = match l with
+                     | k :: l when k = j -> l
+                     | _ -> assert false
+                   in App (sub_DVar l ctx t i r, j)
+    | Sub _ -> assert false
+
+  let rec check_var v t =
+    match t with
+    | CVar v' when v = v' -> () 
+    | CVar v' -> assert false
+    | App (t,_) -> check_var v t
     | Sub _ -> assert false
 end
   
