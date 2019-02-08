@@ -190,6 +190,7 @@ sig
   (* Makers *)
   val empty : unit -> t
   val add : t -> var -> ty -> t
+  val add_safe : t -> CVar.t -> Ty.t -> t
   val make : (var * ty) list -> t
   val of_ps : PS.t -> t
        
@@ -203,10 +204,13 @@ sig
   val value : t -> (cvar * Ty.t) list
   val mem : t -> cvar -> bool
   val dim : t -> int
-
+  val vars : t -> CVar.t list
+                   
   (* Equality procedure *)
   val is_empty : t -> bool
   val check_equal : t -> t -> unit
+
+  val make_safe : (CVar.t * Ty.t) list -> t
                                 
   (* Printing *)
   val to_string : t -> string
@@ -237,6 +241,15 @@ struct
     with Not_found ->
           let u = Ty.make [] c u in
           (x,u)::(c :> t)
+
+  let add_safe (c:Ctx.t) x u =
+    try
+      ignore (List.assoc x (c :> t));
+      raise (DoubleDef (CVar.to_string x))
+    with Not_found ->
+          Ty.check [] c u;
+          (x,u)::(c :> t)
+    
                          
   (** Create a context from a list of terms. *)
   let rec make l =
@@ -246,11 +259,21 @@ struct
       | (x,t)::l ->
 	 let ctx = Ctx.add ctx x t in
 	 aux l ctx
-    in aux l (Ctx.empty ()) 
+    in aux l (Ctx.empty ())
+
+  let make_safe l =
+    let rec aux l ctx =
+      match l with
+      |[] -> ctx
+      |(x,t)::l ->
+        let ctx = Ctx.add_safe ctx x t in
+        aux l ctx
+    in aux l (Ctx.empty ())
+
 
   (** Create a context from a pasting scheme. *)
   let of_ps ps =
-    assert false
+    PS.ctx ps
            
   (** First element of a context. *)
   let rec head ctx =
@@ -317,6 +340,10 @@ struct
       |_::c -> aux c i
     in aux ctx 0
 
+  let vars ctx =
+    List.map fst ctx
+
+             
   (* TODO : suspension and functorialisation
      - write suspend
      - write functorialize 
@@ -339,7 +366,10 @@ and PS
   val dim : t -> int
   val source : int -> t -> t
   val target : int -> t -> t
-                              
+
+  val vars : t -> CVar.t list
+
+  val ctx : t -> Ctx.t
   (* Printing *)
   val to_string : t -> string
 end
@@ -355,6 +385,8 @@ struct
   (** Domain of definition. *)
   let domain ps = Ctx.domain (Ctx.of_ps ps)
 
+  let ctx = snd
+                             
   let rec check_equal_shape sh1 sh2 =
     match sh1,sh2 with
     |PStart, PStart -> ()
@@ -377,19 +409,25 @@ struct
       check_tgt_vars l_vars ctx dim
     |_,_ -> raise Invalid
 
-  let rec print l =
-    match l with
-    |i::l -> Printf.sprintf "%d %s" i (print l)
-    |[] -> ""
 
-  let rec print_ctx_list l =
-    match l with
-    |(v,ty)::l ->
-      Printf.sprintf "(%s:%s) %s" (CVar.to_string v) (Ty.to_string ty) (print_ctx_list l)
-    |[] -> ""
-    
-    
+  (* TODO : move chop *)
+  let rec chop l k =
+      assert (k >= 0);
+      if k = 0 then [],l
+      else
+        match l with
+        |[] -> assert false
+        |a::l -> let res = chop l (k-1) in
+                 a::(fst res), snd res
 
+  let rec slices_of_length len l =
+    let l,rest = chop l len in
+    match rest with
+    |[] -> [l]
+    |_ -> l::(slices_of_length len rest)
+ 
+
+    
   (** Create a pasting scheme from a context. *)
   let mk (l : Ctx.t) : t =
     (* TODO : Clean this algorithm *)
@@ -419,15 +457,6 @@ struct
       match l with
       |[] -> assert false
       |h::l -> check l h
-    in
-    let rec chop l k =
-      assert (k >= 0);
-      if k = 0 then [],l
-      else
-        match l with
-        |[] -> assert false
-        |a::l -> let res = chop l (k-1) in
-                 a::(fst res), snd res
     in
     let rec chop_all vars0 dim_glue l l_dim n_list =
       match n_list with
@@ -490,9 +519,74 @@ struct
                    
   let to_string ps = Ctx.to_string (snd ps)
 
-  let rec source i ps =  assert false
+  let rec size_shape sh =
+    match sh with
+    |PStart -> 1
+    |PExt (sh,n) -> (3 + 2 * (n - 1)) * size_shape sh
 
-  let rec target i ps = assert false
+  let rec border_shape i sh =
+    match sh with
+    |PStart -> assert false
+    |PExt (sh,n) ->
+      if i = 0 then sh
+      else PExt (border_shape (i-1) sh,n)
+                                                   
+  let rec print_ctx_list l =
+    match l with
+    |(v,ty)::l ->
+      Printf.sprintf "(%s:%s) %s" (CVar.to_string v) (Ty.to_string ty) (print_ctx_list l)
+    |[] -> ""
+
+  let rec print l = 
+    match l with
+    |l::rest ->
+      Printf.sprintf "%s \n %s" (print_ctx_list l) (print rest)
+    |[] -> ""
+
+             
+  let source i (sh,ctx) =
+    (* debug "calculating source of context %s" (Ctx.to_string ctx); *)
+    let rec src i sh ctx = 
+      match sh with
+      |PStart -> assert false
+      |PExt (sh,n) ->
+        let len = size_shape sh in
+        if i = 0 then
+          begin
+          (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
+          List.hd (List.rev (slices_of_length len ctx))
+                  (* fst (chop ctx len) *)
+          end
+        else
+          List.unions (List.map (src (i-1) sh) (slices_of_length len ctx))
+    in
+    let res = src i sh (Ctx.value ctx) in
+    (* debug "res is %s" (print_ctx_list res); *)
+    PS.mk (Ctx.make_safe res)
+    (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
+                  
+  let target i (sh,ctx) = 
+    let rec tgt i sh ctx = 
+      match sh with
+      |PStart -> assert false
+      |PExt (sh,n) ->
+        let len = size_shape sh in
+        if i = 0 then
+          begin
+          (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
+          List.hd (List.tl (slices_of_length len ctx))
+                  (* fst (chop ctx len) *)
+          end
+        else
+          List.unions (List.map (tgt (i-1) sh) (slices_of_length len ctx))
+    in
+    let res = tgt i sh (Ctx.value ctx) in
+    (* debug "res is %s" (print_ctx_list res); *)
+    PS.mk (Ctx.make_safe res)
+    (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
+
+                               
+  let vars (_,c) = Ctx.vars c
 end
 
 and EnvVal
@@ -594,6 +688,8 @@ and Ty
   val check_tgt_var_in_dim : int -> CVar.t -> t -> unit
                                                      
   val dim : t -> int
+  val source : int -> t -> DVar.t list * Tm.t 
+  val target : int -> t -> DVar.t list * Tm.t
   val sub_DVar : DVar.t list -> Ctx. t -> t -> DVar.t -> DVar.t -> t
 end
   =
@@ -609,18 +705,14 @@ struct
   let rec free_vars ty =
     match ty with
     | Obj -> []
-    | Path (_,t,u,v) -> assert false
-  (* List.unions [free_vars t; Tm.free_vars u; Tm.free_vars v] *)
+    | Path (_,t,u,v) ->  List.unions [free_vars t; Tm.free_vars u; Tm.free_vars v]
+  (* The dimension variables are not counted *)
 
   let rec to_string ty =
     match ty with
     | Obj -> "*"
     | Path (i,t,u,v) ->
        Printf.sprintf "Path^%s (%s) (%s) (%s)" (DVar.to_string i) (to_string t) (Tm.to_string u) (Tm.to_string v)
-
-  (** Ensure that a type is well-formed in given context. *)
-  let rec check l ctx ty =
-    assert false
            
   (** Test for equality. *)
   let rec check_equal l ctx ty1 ty2 =
@@ -650,6 +742,17 @@ struct
                          let u = Tm.sub_DVar l ctx u i r in
                          Path(j,a,t,u)
 
+  (** Ensure that a type is well-formed in given context. *)
+  let rec check l ctx ty =
+    match ty with
+    |Obj -> ()
+    |Path (i,ty,u,v) ->
+      let tu = Tm.infer l ctx u in
+      let tv = Tm.infer l ctx v in
+      Ty.check (i::l) ctx ty;
+      check_equal l ctx (sub_DVar l ctx ty i DVar.zero) tu; 
+      check_equal l ctx (sub_DVar l ctx ty i DVar.one) tv
+                             
   (** Construct a type. *)
   let rec make l c (e : Syntax.ty) =
     match e with
@@ -682,7 +785,25 @@ struct
     | Path(_,a,_,u) when dim a = i -> Tm.check_var v u;
     | Path (_,a,_,_) -> check_tgt_var_in_dim i v a 
 
-      
+  let source i ty =
+    let rec src i l ty = 
+      match ty with
+      | Obj -> assert false
+      | Path (j,a,u,_) when i = 0 ->
+         l,u
+      | Path(j,a,_,_) ->
+         src (i-1) (j::l) a
+    in src i [] ty
+         
+  let target i ty =
+    let rec tgt i l ty = 
+      match ty with
+      | Obj -> assert false
+      | Path (j,a,_,u) when i = 0 ->
+         l,u
+      | Path(j,a,_,_) ->
+         tgt (i-1) (j::l) a
+    in tgt i [] ty       
 end
 
 (** Operations on terms. *)
@@ -832,7 +953,24 @@ struct
     (* TODO : write a real typing rule *)
     let ty = Ty.make [] ps t in
     let ps = PS.mk ps in
-    ps,ty
+    if List.included (PS.vars ps) (Ty.free_vars ty)
+    then ps,ty
+    else
+      let n = PS.dim ps in
+      let rec check i =
+        if (i < 0) then ()
+        else
+          let pss = PS.source i ps in
+          let l,tms = Ty.source i ty in
+          let tys = Tm.infer l (Ctx.of_ps pss) tms in
+          let pst = PS.target i ps in
+          let l,tmt = Ty.target i ty in
+          let tyt = Tm.infer l (Ctx.of_ps pst) tmt in
+          if (List.included (PS.vars pss) (List.union (Tm.free_vars tms) (Ty.free_vars tys))
+              && List.included (PS.vars pst) (List.union  (Tm.free_vars tmt) (Ty.free_vars tyt)))
+          then check (i - 1)
+          else raise NotAlgebraic
+      in check (n - 1); ps,ty
 
   let to_string (ps,t) =
     Printf.sprintf "Coh {%s |- %s}"

@@ -21,12 +21,13 @@ test (x : *) (z : *) (k : Path i * x z)
 #### Various coherences
 coh id (x : *) : Path i * x x
 coh comp (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) : Path i * x z
+
 # Correct the return type, but that checks the ps algorithm
 coh vcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	  (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	  (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
 	  (f'' : Path i * x'' y'') (b : Path i (Path j * (hx' i) (hy' i)) f' f'') :
-	  Path i * x y
+	  
 
 coh hcomp (x : *) (x' : *) (hx : Path i * x x')
     	  (y : *) (y' : *) (hy : Path i * y y')
