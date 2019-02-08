@@ -56,15 +56,17 @@ let exec_cmd cmd =
           info "checked term %s type %s" e t
      end
   | Decl (v,l,e,t) ->
-     let t = match t with
+     begin
+       match t with
        | Some t ->
           command "let %s = %s : %s" (string_of_var v) (string_of_tm e) (string_of_ty t);
-          let t = Kernel.add_let_env_of_ty v l e t in t
+          (* let t = Kernel.add_let_env_of_ty v l e t in t *)
        | None ->
           command "let %s = %s" (string_of_var v) (string_of_tm e);
-          let t = Kernel.add_let_env v l e in t
-     in
-     info "defined term of type %s" t
+          (* let t = Kernel.add_let_env v l e in t *)
+          let _,t = Kernel.mk_tm l e in
+          info "defined term of type %s" t
+     end
   | Ctx_test l ->
      command "building context";
      let s = Kernel.mk_ctx l in

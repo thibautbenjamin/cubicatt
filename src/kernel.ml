@@ -137,7 +137,7 @@ struct
 	     
   (** Free context variables. *)
   let free_vars s =
-    List.concat (List.map Tm.free_vars s.list)
+    List.concat (List.map (Tm.free_vars s.src) s.list)
 
 
   let rec apply_list_var l tar x = 
@@ -175,8 +175,15 @@ struct
          let u = apply_list_Tm s tar src u in
          let v = apply_list_Tm s tar src v in Path(i,a,u,v)
     in e
-                
+
+  let rec print l =
+    match l with
+    |t::l -> Printf.sprintf "%s %s" (Tm.to_string t) (print l)
+    |[] -> ""
+
   let mk l src tgt =
+    (* debug "making substitution %s \n with target %s" *)
+          (* (print l) (Ctx.to_string tgt); *)
     let rec aux l (tgt : Ctx.t) =
       match l,Ctx.value tgt with
       |[],[] -> []
@@ -370,9 +377,17 @@ struct
                   
            
   (** Equality of contexts. *)
-  let rec check_equal ctx1 ctx2 =
-    assert false
-  (* TODO : equality of context in this theory *)
+  let check_equal ctx1 ctx2 =
+    let rec equal c (ctx1 : Ctx.t) (ctx2 : Ctx.t) =
+      match (ctx1 :> t), (ctx2 :> t) with
+      | [],[] -> ()
+      | (v1,x1)::_, (v2,x2)::_ ->
+         let t1 = Ctx.tail ctx1 and t2 = Ctx.tail ctx2 in
+         if not (v1 = v2) then raise NotValid;
+         Ty.check_equal [] c x1 x2;
+         equal ctx1 t1 t2
+      | _,_ -> raise NotValid
+    in equal (Ctx.empty ()) ctx1 ctx2
 	
   (** String representation of a context. *)
   let rec to_string ctx =
@@ -672,12 +687,10 @@ struct
   {print = (nm,[]); value = Coh c}
 
   let mk_let nm c u =
-    assert false
-  (* TODO : think about what list of DVar to give *)
-  (* let c = Ctx.make c in
-   * let u,ty = Tm.make [] c u in
-   * (\* let u = Tm.mark_ctx u in *\)
-   * {print = (nm,[]); value = Let u}, Ty.to_string ty *)
+  let c = Ctx.make c in
+  let u,ty = Tm.make [] c u in
+  (* let u = Tm.mark_ctx u in *)
+  {print = (nm,[]); value = Let u}, Ty.to_string ty
 
   let mk_let_check nm c u t =
     assert false
@@ -729,7 +742,7 @@ and Ty
     | Path of DVar.t * t * Tm.t * Tm.t
 
            
-  val free_vars : t -> cvar list
+  val free_vars : Ctx.t -> t -> cvar list
   val to_string : t -> string
 
   val check : DVar.t list -> Ctx.t -> t -> unit
@@ -754,10 +767,10 @@ struct
   exception Unknown
 
   (** Free variables of a type. *)
-  let rec free_vars ty =
+  let rec free_vars ctx ty =
     match ty with
     | Obj -> []
-    | Path (_,t,u,v) ->  List.unions [free_vars t; Tm.free_vars u; Tm.free_vars v]
+    | Path (_,t,u,v) ->  List.unions [free_vars ctx t; Tm.free_vars ctx u; Tm.free_vars ctx v]
   (* The dimension variables are not counted *)
 
   let rec to_string ty =
@@ -868,7 +881,7 @@ sig
     | Sub of evar * EnvVal.t * Sub.t
     | App of t * DVar.t
            
-  val free_vars : t -> cvar list
+  val free_vars : Ctx.t -> t -> cvar list
   val to_string : t -> string
 
   val infer : DVar.t list -> Ctx.t -> t -> Ty.t
@@ -889,11 +902,11 @@ struct
                                  
   exception Unknown
              
-  let rec free_vars tm =
+  let rec free_vars ctx tm =
     match tm with
-    | CVar x -> [x]
+    | CVar x -> x :: (Ty.free_vars ctx (Ctx.ty_var ctx x))
     | Sub (_,_,sub) -> Sub.free_vars sub
-    | App(t,_) -> free_vars t
+    | App(t,_) -> free_vars ctx t
                      
   let rec to_string tm =
     match tm with
@@ -1014,7 +1027,7 @@ struct
     (* TODO : write a real typing rule *)
     let ty = Ty.make [] ps t in
     let ps = PS.mk ps in
-    if List.included (PS.vars ps) (Ty.free_vars ty)
+    if List.included (PS.vars ps) (Ty.free_vars (Ctx.of_ps ps) ty)
     then ps,ty
     else
       let n = PS.dim ps in
@@ -1024,15 +1037,15 @@ struct
         else
           let pss = PS.source i ps in
           let l,tms = Ty.source i ty in
-          let tys = Tm.infer l (Ctx.of_ps pss) tms in
+          let _ = Tm.infer l (Ctx.of_ps pss) tms in
           let pst = PS.target i ps in
           let l,tmt = Ty.target i ty in
-          let tyt = Tm.infer l (Ctx.of_ps pst) tmt in
-          debug "in dim %d : \n the source ps is %s \n the source (term,ty) is (%s, %s)\n the target ps is %s \n the target (term,ty) is (%s, %s)"
-          i (PS.to_string pss) (Tm.to_string tms) (Ty.to_string tys) 
-               (PS.to_string pst)(Tm.to_string tmt) (Ty.to_string tyt);
-          if (List.included (PS.vars pss) (List.union (Tm.free_vars tms) (Ty.free_vars tys))
-              && List.included (PS.vars pst) (List.union  (Tm.free_vars tmt) (Ty.free_vars tyt)))
+          let _ = Tm.infer l (Ctx.of_ps pst) tmt in
+          (* debug "in dim %d : \n the source ps is %s \n the source (term,ty) is (%s, %s)\n the target ps is %s \n the target (term,ty) is (%s, %s)"
+           * i (PS.to_string pss) (Tm.to_string tms) (Ty.to_string tys) 
+           *      (PS.to_string pst)(Tm.to_string tmt) (Ty.to_string tyt); *)
+          if (List.included (PS.vars pss) (Tm.free_vars (Ctx.of_ps pss) tms)
+              && List.included (PS.vars pst) (Tm.free_vars (Ctx.of_ps pst) tmt))
           then check (i - 1)
           else raise NotAlgebraic
       in check (n - 1); ps,ty

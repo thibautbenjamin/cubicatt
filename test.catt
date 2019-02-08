@@ -22,6 +22,9 @@ test (x : *) (z : *) (k : Path i * x z)
 coh id (x : *) : Path i * x x
 coh comp (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) : Path i * x z
 
+coh id2 (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) ((id y) i)) f f
+
 # Correct the return type, but that checks the ps algorithm
 coh vcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	  (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
@@ -36,6 +39,20 @@ coh hcomp (x : *) (x' : *) (hx : Path i * x x')
 	  (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g') :
 	  Path i (Path j * (hx i) (hz i)) (comp x y f z g) (comp x' y' f' z' g')
 
+
+let a (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
+      (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
+      (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
+      (f'' : Path i * x'' y'') (a' : Path i (Path j * (hx' i) (hy' i)) f' f'')
+      (z : *) (z' : *) (hz : Path i * z z') (z'' : *) (hz' : Path i * z' z'')
+      (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g')
+      (g'' : Path i * y'' z'') (b' : Path i (Path j * (hy' i) (hz' i)) g' g'') =
+      vcomp x x' hx x'' hx' z z' hz z'' hz' (comp x y f z g) (comp x' y' f' z' g')
+	    (hcomp x x' hx y y' hy f f' a z z' hz g g' b) (comp x'' y'' f'' z'' g'')
+	    (hcomp x' x'' hx' y' y'' hy' f' f'' a' z' z'' hz' g' g'' b')
+
+
+
 coh exch (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	 (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
@@ -43,7 +60,20 @@ coh exch (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
 	 (z : *) (z' : *) (hz : Path i * z z') (z'' : *) (hz' : Path i * z' z'')
 	 (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g')
 	 (g'' : Path i * y'' z'') (b' : Path i (Path j * (hy' i) (hz' i)) g' g'') :
-	 Path i * x y
+	 Path i
+	   (Path j
+	     (Path k * (((id2 x x'' (comp x x' hx x'' hx')) i) j)
+	     	       (((id2 z z'' (comp z z' hz z'' hz')) i) j))
+	    ((id2 x z (comp x y f z g)) i)
+	    ((id2 x'' z'' (comp x'' y'' f'' z'' g'')) i) )
+	 (vcomp x x' hx x'' hx' z z' hz z'' hz' (comp x y f z g) (comp x' y' f' z' g')
+	 	(hcomp x x' hx y y' hy f f' a z z' hz g g' b) (comp x'' y'' f'' z'' g'')
+	        (hcomp x' x'' hx' y' y'' hy' f' f'' a' z' z'' hz' g' g'' b'))
+	 (hcomp	x x'' (comp x x' hx x'' hx')
+	 	y y'' (comp y y' hy y'' hy')
+		f f'' (vcomp x x' hx x'' hx' y y' hy y'' hy' f f' a f'' a')
+		z z'' (comp z z' hz z'' hz')
+		g g'' (vcomp y y' hy y'' hy' z z' hz z'' hz' g g' b g'' b'))
 
 coh cube (x : *) (z : *) (k : Path i * x z)
     	 (x' : *) (z' : *) (k' : Path i * x' z')
@@ -55,7 +85,7 @@ coh cube (x : *) (z : *) (k : Path i * x z)
 	 (f' : Path i * x' y') (g' : Path i * z' t') (d : Path i  (Path j * (k' i) (l' i)) f' g')
 	 (e : Path i (Path j * (hx i) (hy i)) f f') (h : Path i  (Path j * (hz i) (ht i)) g g')
 	 (A : Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h) :
-	 Path i * x y
+	 Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h
 	   
 
 ### Non-strict cube
