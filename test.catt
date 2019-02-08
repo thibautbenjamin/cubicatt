@@ -25,7 +25,15 @@ coh comp (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) : Path i 
 coh id2 (x : *) (y : *) (f : Path i * x y) :
     Path i (Path j * ((id x) i) ((id y) i)) f f
 
-# Correct the return type, but that checks the ps algorithm
+coh connexion1 (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) (f i)) (id x) f
+
+coh connexion2 (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * (f i) ((id y) i)) f (id y)
+
+coh assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
+    Path i (Path j * (f i) (h i)) (comp x y f z g) (comp y z g w h)
+
 coh vcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	  (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	  (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
@@ -38,20 +46,6 @@ coh hcomp (x : *) (x' : *) (hx : Path i * x x')
 	  (z : *) (z': * ) (hz : Path i * z z')
 	  (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g') :
 	  Path i (Path j * (hx i) (hz i)) (comp x y f z g) (comp x' y' f' z' g')
-
-
-let a (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
-      (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
-      (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
-      (f'' : Path i * x'' y'') (a' : Path i (Path j * (hx' i) (hy' i)) f' f'')
-      (z : *) (z' : *) (hz : Path i * z z') (z'' : *) (hz' : Path i * z' z'')
-      (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g')
-      (g'' : Path i * y'' z'') (b' : Path i (Path j * (hy' i) (hz' i)) g' g'') =
-      vcomp x x' hx x'' hx' z z' hz z'' hz' (comp x y f z g) (comp x' y' f' z' g')
-	    (hcomp x x' hx y y' hy f f' a z z' hz g g' b) (comp x'' y'' f'' z'' g'')
-	    (hcomp x' x'' hx' y' y'' hy' f' f'' a' z' z'' hz' g' g'' b')
-
-
 
 coh exch (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
