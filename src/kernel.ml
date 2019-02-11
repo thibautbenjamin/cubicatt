@@ -974,7 +974,8 @@ struct
     | Sub (t,s),_ ->
       let s = List.map (Tm.make l c) s in
       let v,t = match t with
-        |Var v -> let v = EVar.make v in v,Env.val_var v 
+        |Var v ->
+          let v = EVar.make v in v, Env.val_var v 
         |_ -> assert false
       in let ty = EnvVal.ty t in
          let tar = EnvVal.ctx t in

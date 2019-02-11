@@ -26,13 +26,10 @@ coh id2 (x : *) (y : *) (f : Path i * x y) :
     Path i (Path j * ((id x) i) ((id y) i)) f f
 
 coh connexion1 (x : *) (y : *) (f : Path i * x y) :
-    Path i (Path j * ((id x) i) (f i)) (id x) f
-
-coh connexion2 (x : *) (y : *) (f : Path i * x y) :
     Path i (Path j * (f i) ((id y) i)) f (id y)
 
-coh assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
-    Path i (Path j * (f i) (h i)) (comp x y f z g) (comp y z g w h)
+coh connexion2 (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) (f i)) (id x) f
 
 coh vcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	  (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
@@ -46,6 +43,55 @@ coh hcomp (x : *) (x' : *) (hx : Path i * x x')
 	  (z : *) (z': * ) (hz : Path i * z z')
 	  (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g') :
 	  Path i (Path j * (hx i) (hz i)) (comp x y f z g) (comp x' y' f' z' g')
+
+
+coh hvcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
+    	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
+	 (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
+	 (f'' : Path i * x'' y'') (a' : Path i (Path j * (hx' i) (hy' i)) f' f'')
+	 (z : *) (z' : *) (hz : Path i * z z') (z'' : *) (hz' : Path i * z' z'')
+	 (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g')
+	 (g'' : Path i * y'' z'') (b' : Path i (Path j * (hy' i) (hz' i)) g' g'') :
+	 Path i
+	      (Path j * ((comp x x' hx x'' hx') i) ((comp z z' hz z'' hz') i))
+	      (comp x y f z g)
+	      (comp x'' y'' f'' z'' g'')
+
+
+coh id-sym (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) :
+    Path i (Path j * (f i) (g i)) f g
+
+
+coh assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
+    Path i (Path j * (f i) (h i)) (comp x y f z g) (comp y z g w h)
+
+coh assoc-sym
+    (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
+    Path i (Path j * ((comp x y f z g) i) ((comp y z g w h) i)) f h
+
+
+coh unit-l (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) ((id y) i)) (comp x x (id x) y f) f
+
+coh unit-r (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) ((id y) i)) (comp x y f y (id y)) f
+
+coh assoc-can
+    (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) : 
+    Path i
+    	 (Path j
+	       (Path k *
+	       (((unit-l x z (comp x y f z g)) i) j) (((unit-r z w h) i) j))
+    	 ((unit-l x z (comp x y f z g)) i) ((unit-r z w h) i))
+    (hvcomp x x (id x) z (comp x y f z g)
+    	    x y f w (comp y z g w h)
+	     (id x) f (connexion2 x y f) h (assoc-sym x y f z g w h)
+	    z w h w (id w)
+	     (comp x y f z g) (comp y z g w h) (assoc x y f z g w h)
+	     (id w) (connexion1 y w (comp y z g w h)))
+    (id-sym x z (comp x y f z g) w h)
+
+
 
 coh exch (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
