@@ -22,6 +22,13 @@ test (x : *) (z : *) (k : Path i * x z)
 coh id (x : *) : Path i * x x
 coh comp (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) : Path i * x z
 
+coh unit-l (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) ((id y) i)) (comp x x (id x) y f) f
+
+coh unit-r (x : *) (y : *) (f : Path i * x y) :
+    Path i (Path j * ((id x) i) ((id y) i)) (comp x y f y (id y)) f
+
+
 coh id2 (x : *) (y : *) (f : Path i * x y) :
     Path i (Path j * ((id x) i) ((id y) i)) f f
 
@@ -31,12 +38,14 @@ coh connexion1 (x : *) (y : *) (f : Path i * x y) :
 coh connexion2 (x : *) (y : *) (f : Path i * x y) :
     Path i (Path j * ((id x) i) (f i)) (id x) f
 
+#vertical composition of 2-cells
 coh vcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	  (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	  (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
 	  (f'' : Path i * x'' y'') (b : Path i (Path j * (hx' i) (hy' i)) f' f'') :
 	  Path i (Path j * ((comp x x' hx x'' hx') i) ((comp y y' hy y'' hy') i)) f f''
 
+#horizontal composition of 2-cells
 coh hcomp (x : *) (x' : *) (hx : Path i * x x')
     	  (y : *) (y' : *) (hy : Path i * y y')
 	  (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
@@ -44,7 +53,10 @@ coh hcomp (x : *) (x' : *) (hx : Path i * x x')
 	  (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g') :
 	  Path i (Path j * (hx i) (hz i)) (comp x y f z g) (comp x' y' f' z' g')
 
-
+#horizontal and vertical composition of 2-cells
+# _ _
+#|_|_|
+#|_|_|
 coh hvcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	 (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
@@ -57,25 +69,52 @@ coh hvcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'
 	      (comp x y f z g)
 	      (comp x'' y'' f'' z'' g'')
 
+# "square identity" for 1-cells
+#      __f__
+#     |     |
+#    f|     |g
+#     |_____|
+#        g
 
 coh id-sym (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) :
     Path i (Path j * (f i) (g i)) f g
 
+# "square associativity" for 1-cells
+#     __fg__
+#    |      |
+#   f|      |h
+#    |______|
+#       gh
 
 coh assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
     Path i (Path j * (f i) (h i)) (comp x y f z g) (comp y z g w h)
+
+
+# symetric square associativity
+#     __f__
+#    |     |
+#  fg|     |gh
+#    |_____|
+#       h
 
 coh assoc-sym
     (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w):
     Path i (Path j * ((comp x y f z g) i) ((comp y z g w h) i)) f h
 
 
-coh unit-l (x : *) (y : *) (f : Path i * x y) :
-    Path i (Path j * ((id x) i) ((id y) i)) (comp x x (id x) y f) f
-
-coh unit-r (x : *) (y : *) (f : Path i * x y) :
-    Path i (Path j * ((id x) i) ((id y) i)) (comp x y f y (id y)) f
-
+# cancellation witness for associativity and its symetric
+#    _____________________
+#   |          |          |
+#   |          |          |
+#   | connex2  |  assoc   |
+#   |          |          |
+#   |__________|__________|
+#   |          |          |
+#   |          |          |
+#   |assoc-sym | connex1  |
+#   |          |          |
+#   |__________|__________|
+#
 coh assoc-can
     (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) : 
     Path i
@@ -93,6 +132,21 @@ coh assoc-can
 
 
 
+
+# exchange law
+#    _____________________                      ___________ __________
+#   |          |          |                    |          ||          |
+#   |          |          |                    |          ||          |
+#   |    a     |    b     |                    |    a     ||     b    |
+#   |          |          |                    |          ||          | 
+#   |__________|__________|                    |__________||__________|
+#    _____________________     ------->        |          ||          | 
+#   |          |          |                    |          ||          |           
+#   |          |          |                    |    c     ||     d    |
+#   |    c     |    d     |                    |          ||          |
+#   |          |          |                    |__________||__________|
+#   |__________|__________|
+#
 coh exch (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	 (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
