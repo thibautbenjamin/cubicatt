@@ -620,19 +620,24 @@ struct
         let len = size_shape sh in
         if i = 0 then
           begin
-          (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
-          List.rev(List.hd (List.rev (slices_of_length len ctx)))
+            (* debug "list of slices is \n %s" (print (slices_of_length len ctx));
+             * debug "res i=0 : %s" *)
+              (* (print_ctx_list (List.rev(List.hd (List.rev (slices_of_length len ctx))))); *)
+            List.hd (List.rev (slices_of_length len ctx))
                   (* fst (chop ctx len) *)
           end
         else
-          List.unions (List.map (src (i-1) sh) (slices_of_length len ctx))
+          let list_slices = List.map (src (i-1) sh) (slices_of_length len ctx) in
+          (* debug "list of %d-sources : %s" (i-1) (print list_slices); *)
+          List.concat list_slices
     in
-    let res = src i sh (Ctx.value ctx) in
+    let res = List.rev(src i sh (Ctx.value ctx)) in
     (* debug "res is %s" (print_ctx_list res); *)
     PS.mk (Ctx.make_safe res)
     (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
                   
-  let target i (sh,ctx) = 
+  let target i (sh,ctx) =
+    (* debug "calculating target of context %s" (Ctx.to_string ctx); *)
     let rec tgt i sh ctx = 
       match sh with
       |PStart -> assert false
@@ -641,13 +646,13 @@ struct
         if i = 0 then
           begin
           (* debug "list of slices is \n %s" (print (slices_of_length len ctx)); *)
-          List.rev(List.hd (List.tl (slices_of_length len ctx)))
+          List.hd (List.tl (slices_of_length len ctx))
                   (* fst (chop ctx len) *)
           end
         else
-          List.unions (List.map (tgt (i-1) sh) (slices_of_length len ctx))
+          List.concat (List.map (tgt (i-1) sh) (slices_of_length len ctx))
     in
-    let res = tgt i sh (Ctx.value ctx) in
+    let res = List.rev (tgt i sh (Ctx.value ctx)) in
     (* debug "res is %s" (print_ctx_list res); *)
     PS.mk (Ctx.make_safe res)
     (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
