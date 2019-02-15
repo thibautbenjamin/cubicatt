@@ -54,9 +54,13 @@ coh hcomp (x : *) (x' : *) (hx : Path i * x x')
 	  Path i (Path j * (hx i) (hz i)) (comp x y f z g) (comp x' y' f' z' g')
 
 #horizontal and vertical composition of 2-cells
-# _ _
-#|_|_|
-#|_|_|
+# ____ ____
+#|    |    |
+#| a  | b  |
+#|____|____|
+#|    |    |
+#| a' | b' |
+#|____|____|
 coh hvcomp (x : *) (x' : *) (hx : Path i * x x') (x'' : *) (hx' : Path i * x' x'')
     	 (y : *) (y' : *) (hy : Path i * y y') (y'' : *) (hy' : Path i * y' y'')
 	 (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
@@ -131,6 +135,59 @@ coh assoc-can
     (id-sym x z (comp x y f z g) w h)
 
 
+
+# another coherence for associativity
+#     __(fg)h__
+#    |         |
+#    |         |
+#  id|         |id
+#    |         |
+#    |_________|
+#       f(gh)
+#
+coh assoc-bis (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) : 
+    Path i (Path j * ((id x) i) ((id w) i))
+    (comp x z (comp x y f z g) w h)
+    (comp x y f w (comp y z g w h))
+
+
+#ternary composition of morphisms
+coh comp3 (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) :
+    Path i * x w
+
+coh unit-l3 (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) :
+    Path i (Path j * ((id x) i) ((id z) i)) (comp3 x x (id x) y f z g) (comp x y f z g)
+
+coh unit-r3 (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) :
+    Path i (Path j * ((id x) i) ((id z) i)) (comp3 x y f z g z (id z)) (comp x y f z g)
+
+#ternary horizontal composition of 2-cells
+coh hcomp3 (x : *) (x' : *) (hx : Path i * x x')
+    	   (y : *) (y' : *) (hy : Path i * y y')
+	   (f : Path i * x y) (f' : Path i * x' y') (a : Path i (Path j * (hx i) (hy i)) f f')
+	   (z : *) (z': * ) (hz : Path i * z z')
+	   (g : Path i * y z) (g' : Path i * y' z') (b : Path i (Path j * (hy i) (hz i)) g g')
+	   (w : *) (w' : *) (hw : Path i * w w')
+	   (k : Path i * z w) (k' : Path i * z' w') (c : Path i (Path j * (hz i) (hw i)) k k') :
+	  Path i (Path j * (hx i) (hw i)) (comp3 x y f z g w k) (comp3 x' y' f' z' g' w' k')
+
+
+# equivalence with the square associativity
+#    ________________________________
+#   |          |          |          |
+#   |          |          |          |
+#   | connex2  |  assoc   | connex1  | ------> assoc-bis
+#   |          |          |          |
+#   |__________|__________|__________|
+#
+coh equiv-assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) :
+    Path i
+      	 (Path j
+      	       (Path k * (((id2 x x (id x)) i) j) (((id2 w w (id w)) i) j))     
+      	 ((unit-l3 x z (comp x y f z g) w h) i) ((unit-r3 x y f w (comp y z g w h)) i))
+    (hcomp3 x x (id x) x y f (id x) f (connexion2 x y f) z w h (comp x y f z g) (comp y z g w h) (assoc x y f z g w h) w w (id w) h (id w) (connexion1 z w h))
+    (assoc-bis x y f z g w h)
+    
 
 
 # exchange law

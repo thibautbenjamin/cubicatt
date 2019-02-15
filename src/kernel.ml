@@ -939,7 +939,8 @@ struct
   let rec infer l ctx tm =
     match tm,l with
     | CVar x,[] -> Ctx.ty_var ctx x
-    | CVar x,_ -> failwith "the cubes must be strict"
+    | CVar x,_ -> debug "tried to build var %s with free dimensions %s" (CVar.to_string x) (DVar.print_list l);
+       failwith "the cubes must be strict"
     | Sub (_,v,s),_ ->
        let ty = EnvVal.ty v in
        Sub.apply_Ty s ty
