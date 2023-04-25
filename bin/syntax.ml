@@ -1,12 +1,9 @@
 open Stdlib
-open Settings
-open Common
-
 
 type var =
   | Name of string
   | New of int
-	     
+
 let string_of_var v =
   match v with
   | Name s -> s
@@ -16,15 +13,15 @@ let make_var s = Name s
 
   (** A raw type. *)
   type ty =
-    | Letin_ty of var * tm * ty 
+    | Letin_ty of var * tm * ty
     | Obj
     | Path of var * ty * tm * tm
   (** A raw term. *)
    and tm =
     | Letin_tm of var * tm * tm
     | Var of var
-    | Sub of tm * (tm list) 
-             
+    | Sub of tm * (tm list)
+
   let rec string_of_ty e =
     match e with
     | Letin_ty (v,e,ty) -> Printf.sprintf "let %s = %s in %s" (string_of_var v) (string_of_tm e) (string_of_ty ty)
@@ -45,18 +42,18 @@ let make_var s = Name s
     match e with
     | Letin_tm _ -> assert false
     | Var v -> [v]
-    | Sub (e,l) -> List.unions (List.map list_vars l)
+    | Sub (_,l) -> List.unions (List.map list_vars l)
 
   (** remove the let in in a term *)
   (* TODO : write this function *)
-  let rec replace_tm l e =
+  let replace_tm _l _e =
     assert false
-  and replace_ty l t =
+  and replace_ty _l _t =
     assert false
 
-           
+
   (* let rec replace_tm l e =
-   *   match e with 
+   *   match e with
    *   | Var a ->
    *      begin
    *        try replace_tm l (List.assoc a l)
@@ -83,4 +80,3 @@ let make_var s = Name s
     |[] -> []
     |(Var v)::l when v == v1-> (Var v2)::l
     |t::l -> t::(replace_tm_list l v1 v2)
-    

@@ -1,5 +1,4 @@
 open Stdlib
-open Settings
 open Common
 open Syntax
 open Gassoc
@@ -18,7 +17,7 @@ struct
   type t = var
 
   let next_fresh = ref (New 0)
-             
+
   let to_string v =
     string_of_var v
 
@@ -31,16 +30,15 @@ struct
     let nxt = match res with
            |New k -> New (k+1)
            |_ -> assert (false)
-    in next_fresh := nxt; res                      
+    in next_fresh := nxt; res
 end
 
 (** Context variables (i.e. "arguments of functions"). *)
 module CVar
-: sig 
+: sig
     type t
     val to_string : t -> string
     val make : var -> t
-    val to_var : t -> var
     val compute_vars : (t*'a) list -> t list
 end
 =
@@ -49,10 +47,8 @@ struct
 
   let to_string v =
     string_of_var v
-	       
-  let make v = v
 
-  let to_var v = v
+  let make v = v
 
   let compute_vars l = List.map fst l
 end
@@ -81,12 +77,12 @@ struct
     |New of int
 
   let count = ref 0
-              
+
   let to_string v =
     match v with
     |Var v ->  string_of_var v
     |_ -> assert false
-	       
+
   let make v = Var v
 
   let rec print_list l =
@@ -100,15 +96,9 @@ struct
   let new_var ()  = incr(count); New !count
 end
 
-  
+
 type evar = EVar.t
 type cvar = CVar.t
-
-let var_of_cvar = CVar.to_var
-
-(** Dimension variables *)
-
-    
 
 (** Operations on substitutions. *)
 module rec Sub
@@ -118,34 +108,33 @@ sig
 
   (* Structural functions *)
   val mk : Tm.t list -> Ctx.t -> Ctx.t  -> t
-	   
-  (* Syntactic properties *)		    
+
+  (* Syntactic properties *)
   val free_vars : t -> cvar list
   val apply_Ty : t -> Ty.t -> Ty.t
   val apply_Tm : t -> Tm.t -> Tm.t
-           
+
   (* Equality procedures *)
   val check_equal : t -> t -> unit
 
-  (* Printing *)	
+  (* Printing *)
   val to_string : t ->  string
 end
   =
 struct
   (** A substitution. *)
   type t = {list : Tm.t list; src : Ctx.t; tar : Ctx.t}
-	     
+
   (** Free context variables. *)
   let free_vars s =
     List.concat (List.map (Tm.free_vars s.src) s.list)
 
 
-  let rec apply_list_var l tar x = 
+  let rec apply_list_var l tar x =
       match l,tar with
       |_,_ when Ctx.is_empty tar ->
         assert false
       |t::l, _ ->
-        let open Tm in
         let ((y,_),tar) = (Ctx.head tar, Ctx.tail tar) in
         if y = x
         then t
@@ -153,21 +142,23 @@ struct
       |[], _ -> assert false
   and compose_lists src tar s s' =
     List.rev (List.map (fun t -> apply_list_Tm s tar src t) s')
-  (** Apply a substitution to a term. *)
+
+  (* Apply a substitution to a term. *)
   and apply_list_Tm s tar src tm =
     let open Tm in
     let e =
       match tm with
       |CVar x -> apply_list_var s tar x
       |Sub (x,v,s') ->
-        let newtar = EnvVal.ctx v in 
+        let newtar = EnvVal.ctx v in
         Sub (x,v, Sub.mk (compose_lists src tar s s'.list) src newtar)
       |App (t,i) -> App(apply_list_Tm s tar src t, i)
     in e
-  (** Apply a substitution to a type. *)
+
+  (* Apply a substitution to a type. *)
   and apply_list_Ty s tar src ty =
     let open Ty in
-    let e = 
+    let e =
       match ty with
       | Obj -> Obj
       | Path (i,a,u,v) ->
@@ -176,11 +167,6 @@ struct
          let v = apply_list_Tm s tar src v in Path(i,a,u,v)
     in e
 
-  let rec print l =
-    match l with
-    |t::l -> Printf.sprintf "%s %s" (Tm.to_string t) (print l)
-    |[] -> ""
-
   let mk l src tgt =
     (* debug "making substitution %s \n with target %s" *)
           (* (print l) (Ctx.to_string tgt); *)
@@ -188,14 +174,13 @@ struct
       match l,Ctx.value tgt with
       |[],[] -> []
       |(_::_,[] |[],_::_) -> raise NotValid
-      |t::s,_ -> 
-	let (x,u),tar = (Ctx.head tgt,Ctx.tail tgt) in
-	let s = aux s tar in 
+      |t::s,_ ->
+	let (_,u),tar = (Ctx.head tgt,Ctx.tail tgt) in
+	let s = aux s tar in
 	let ty = Tm.infer [] src t in
 	let () = Ty.check_equal [] src ty (apply_list_Ty s tar src u)
 	in t::s
     in {list = aux (List.rev l) tgt; src = src; tar = tgt}
-
 
   let apply_Tm s tm =
      apply_list_Tm s.list s.tar s.src tm
@@ -208,34 +193,34 @@ struct
   let check_equal (s1:t) (s2:t) =
     Ctx.check_equal s1.tar s2.tar;
     let ctx = s1.tar in
-    let rec check_list s1 s2 = 
+    let rec check_list s1 s2 =
       match s1,s2 with
       | [],[] -> ()
       | t1::s1,t2::s2 ->
          Tm.check_equal ctx t1 t2;
          check_list s1 s2
       | _,_ -> raise NotValid
-    in check_list s1.list s2.list 
+    in check_list s1.list s2.list
 
   (** String representation of a substitution. We print only maximal elements *)
   let to_string (s:t) =
     let rec print_list s =
       match s with
       | [] -> ""
-      | (u::s) -> Printf.sprintf "%s %s" (print_list s) (Tm.to_string u) 
+      | (u::s) -> Printf.sprintf "%s %s" (print_list s) (Tm.to_string u)
     in print_list s.list
 
 
 
-  (* TODO : Implement elaboration of substitution 
+  (* TODO : Implement elaboration of substitution
      - write an mk_elaborated
      - write list_expl_vars
-     - write explicit  
+     - write explicit
      - change mk to mk_elaborated in apply_Tm and apply_Ty
    *)
 
-  (* TODO : Implement suspension and functorialisation 
-     - write to_string_func to print with functorialised arguments   
+  (* TODO : Implement suspension and functorialisation
+     - write to_string_func to print with functorialised arguments
    *)
 end
 
@@ -244,39 +229,35 @@ and Ctx
     :
 sig
   type t = private (cvar * Ty.t) list
-                     
+
   (* Makers *)
   val empty : unit -> t
   val add : t -> var -> ty -> t
   val add_safe : t -> CVar.t -> Ty.t -> t
   val make : (var * ty) list -> t
   val of_ps : PS.t -> t
-       
+
   (* Structural operations *)
   val head : t -> cvar * Ty.t
   val tail : t -> t
-                              
+
   (* Syntactic properties *)
   val ty_var : t -> cvar -> Ty.t
-  val domain : t -> cvar list
   val value : t -> (cvar * Ty.t) list
-  val mem : t -> cvar -> bool
-  val dim : t -> int
   val vars : t -> CVar.t list
-                   
+
   (* Equality procedure *)
   val is_empty : t -> bool
   val check_equal : t -> t -> unit
 
   val make_safe : (CVar.t * Ty.t) list -> t
-                                
+
   (* Printing *)
   val to_string : t -> string
 end
   =
 struct
   (** A context. Variables together with a type a a boolean indicating if the variable is explicit or implicit*)
-  
   type t = (cvar * Ty.t) list
 
 
@@ -308,10 +289,10 @@ struct
     with Not_found ->
           Ty.check [] c u;
           (x,u)::(c :> t)
-    
-                         
+
+
   (** Create a context from a list of terms. *)
-  let rec make l =
+  let make l =
     let rec aux l ctx =
       match l with
       | [] -> ctx
@@ -333,49 +314,25 @@ struct
   (** Create a context from a pasting scheme. *)
   let of_ps ps =
     PS.ctx ps
-           
+
   (** First element of a context. *)
-  let rec head ctx =
+  let head ctx =
     match ctx with
     |[] -> assert false
     |a::_ -> a
-           
+
   (** Tail of a context. *)
-  let rec tail ctx =
-    match ctx with 
+  let tail ctx =
+    match ctx with
     |[] -> assert false
     |_::l -> l
-                   
-       
-  (** Domain of definition of a context. *)
-  let domain ctx = List.map fst ctx
 
   let value (ctx : t) = ctx
-    
-  (** Check whether a variable belongs to a context. *)
-  let mem (c:t) v =
-    let rec aux c =  
-      match c with
-      | [] -> false
-      | (x,_)::c when x = v -> true
-      | _::c -> aux c
-    in aux c
-	      
+
   (** Is a context empty? *)
   let is_empty (c:t) =
     c = []
 
-  let max_used_var ctx =
-    let rec aux n l =
-      match l with
-      |[] -> n
-      |v::l ->
-        match CVar.to_var v with
-        |Name _ -> aux n l 
-        |New k -> aux (max k n) l
-    in aux 0 (domain ctx)
-                  
-           
   (** Equality of contexts. *)
   let check_equal ctx1 ctx2 =
     let rec equal c (ctx1 : Ctx.t) (ctx2 : Ctx.t) =
@@ -388,7 +345,7 @@ struct
          equal ctx1 t1 t2
       | _,_ -> raise NotValid
     in equal (Ctx.empty ()) ctx1 ctx2
-	
+
   (** String representation of a context. *)
   let rec to_string ctx =
     match ctx with
@@ -398,22 +355,14 @@ struct
          (to_string c)
 	 (CVar.to_string x)
          (Ty.to_string t)
-                      
-  (** dimension of a context is the maximal dimension of its variables *)
-  let dim ctx =
-    let rec aux c i = match c with
-      |[] -> i
-      |(_,ty)::c when Ty.dim ty>i -> aux c (Ty.dim ty)
-      |_::c -> aux c i
-    in aux ctx 0
 
   let vars ctx =
     List.map fst ctx
 
-             
+
   (* TODO : suspension and functorialisation
      - write suspend
-     - write functorialize 
+     - write functorialize
    *)
 end
 
@@ -422,12 +371,9 @@ end
 and PS
 : sig
   type t
-         
-  (* Maker *)
-  val mk : Ctx.t -> t 
 
-  (* Syntactic properties *)
-  val domain : t -> cvar list
+  (* Maker *)
+  val mk : Ctx.t -> t
 
   (* Structural operations *)
   val dim : t -> int
@@ -438,22 +384,18 @@ and PS
 
   val ctx : t -> Ctx.t
   (* Printing *)
-  val to_string : t -> string
 end
   =
 struct
   exception Invalid
-  (** A pasting scheme. *)
-  type shape =  
-    |PStart 
+  (* A pasting scheme. *)
+  type shape =
+    |PStart
     |PExt of shape * int
   type t = shape * Ctx.t
-                   
-  (** Domain of definition. *)
-  let domain ps = Ctx.domain (Ctx.of_ps ps)
 
   let ctx = snd
-                             
+
   let rec check_equal_shape sh1 sh2 =
     match sh1,sh2 with
     |PStart, PStart -> ()
@@ -463,7 +405,7 @@ struct
   let rec check_src_vars l_vars ctx dim =
     match l_vars,ctx with
     |[], [] -> ()
-    |v::l_vars, (v',ty)::ctx ->
+    |v::l_vars, (_,ty)::ctx ->
       Ty.check_src_var_in_dim dim v ty;
       check_src_vars l_vars ctx dim
     |_,_ -> raise Invalid
@@ -471,7 +413,7 @@ struct
   let rec check_tgt_vars l_vars ctx dim =
     match l_vars,ctx with
     |[], [] -> ()
-    |v::l_vars, (v',ty)::ctx ->
+    |v::l_vars, (_,ty)::ctx ->
       Ty.check_tgt_var_in_dim dim v ty;
       check_tgt_vars l_vars ctx dim
     |_,_ -> raise Invalid
@@ -492,9 +434,9 @@ struct
     match rest with
     |[] -> [l]
     |_ -> l::(slices_of_length len rest)
- 
 
-    
+
+
   (** Create a pasting scheme from a context. *)
   let mk (l : Ctx.t) : t =
     (* TODO : Clean this algorithm *)
@@ -502,13 +444,13 @@ struct
       match l with
       |[] -> res
       |n::k::l when n = dim_min && k = dim_max ->
-        let res = 
+        let res =
           match res with
           |a::res -> 1::(a+1::res)
           |[] -> assert false
-        in count l dim_max dim_min res 
-      |k::l ->
-        let res = 
+        in count l dim_max dim_min res
+      |_::l ->
+        let res =
           match res with
           |a::res -> a+1::res
           |[] -> 1::[]
@@ -545,7 +487,7 @@ struct
     and compute_shape l l_dim =
       match l with
       |[] -> raise Invalid
-      |(x,ty)::[] -> PStart
+      |(_,_)::[] -> PStart
       |_ ->
         let min = List.min l_dim and max = List.max l_dim in
         let cuts = List.rev (count l_dim min max []) in
@@ -570,12 +512,12 @@ struct
       let l = List.rev l in
       match l with
       |[] -> raise Invalid
-      |(x,ty)::[] when Ty.dim ty = 0 -> PStart (* Only type of dimension 0 is Obj *)
+      |(_,ty)::[] when Ty.dim ty = 0 -> PStart (* Only type of dimension 0 is Obj *)
       |_::[] -> raise Invalid
       |_ -> let list_dim  = (List.map (fun x -> Ty.dim (snd x))) l in
-            compute_shape l list_dim 
+            compute_shape l list_dim
     in init (Ctx.value l), l
-           
+
 
   let dim ps =
     let rec dim_shape sh =
@@ -583,40 +525,18 @@ struct
       |PStart -> 0
       |PExt (sh,_) -> 1+(dim_shape sh)
     in dim_shape (fst ps)
-                   
-  let to_string ps = Ctx.to_string (snd ps)
 
   let rec size_shape sh =
     match sh with
     |PStart -> 1
     |PExt (sh,n) -> (3 + 2 * (n - 1)) * size_shape sh
 
-  let rec border_shape i sh =
-    match sh with
-    |PStart -> assert false
-    |PExt (sh,n) ->
-      if i = 0 then sh
-      else PExt (border_shape (i-1) sh,n)
-                                                   
-  let rec print_ctx_list l =
-    match l with
-    |(v,ty)::l ->
-      Printf.sprintf "(%s:%s) %s" (CVar.to_string v) (Ty.to_string ty) (print_ctx_list l)
-    |[] -> ""
-
-  let rec print l = 
-    match l with
-    |l::rest ->
-      Printf.sprintf "%s \n %s" (print_ctx_list l) (print rest)
-    |[] -> ""
-
-             
   let source i (sh,ctx) =
     (* debug "calculating source of context %s" (Ctx.to_string ctx); *)
-    let rec src i sh ctx = 
+    let rec src i sh ctx =
       match sh with
       |PStart -> assert false
-      |PExt (sh,n) ->
+      |PExt (sh,_) ->
         let len = size_shape sh in
         if i = 0 then
           begin
@@ -635,13 +555,13 @@ struct
     (* debug "res is %s" (print_ctx_list res); *)
     PS.mk (Ctx.make_safe res)
     (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
-                  
+
   let target i (sh,ctx) =
     (* debug "calculating target of context %s" (Ctx.to_string ctx); *)
-    let rec tgt i sh ctx = 
+    let rec tgt i sh ctx =
       match sh with
       |PStart -> assert false
-      |PExt (sh,n) ->
+      |PExt (sh,_) ->
         let len = size_shape sh in
         if i = 0 then
           begin
@@ -657,7 +577,7 @@ struct
     PS.mk (Ctx.make_safe res)
     (* PS.mk (Ctx.make_safe (src i sh (Ctx.value ctx))) *)
 
-                               
+
   let vars (_,c) = Ctx.vars c
 end
 
@@ -666,19 +586,19 @@ and EnvVal
   type v =
     |Coh of Coh.t
     |Let of Tm.t
-  type t = {print : string * int list; value : v}      
+  type t = {print : string * int list; value : v}
 
   val mk_coh : string -> (var * ty) list -> ty-> t
   val mk_let : string -> (var * ty) list -> tm -> t * string
   val mk_let_check : string -> (var * ty) list -> tm -> ty -> t * string
 
   val dim : t -> int
-                         
+
   val ty :  t -> Ty.t
   val ctx : t -> Ctx.t
   val check_equal : t -> Tm.t -> Sub.t -> t -> Tm.t -> Sub.t -> Ctx.t -> unit
 end
-= 
+=
 struct
   type v =
     |Coh of Coh.t
@@ -697,7 +617,7 @@ struct
   (* let u = Tm.mark_ctx u in *)
   {print = (nm,[]); value = Let u}, Ty.to_string ty
 
-  let mk_let_check nm c u t =
+  let mk_let_check _nm _c _u _t =
     assert false
   (* TODO : think about what list of DVar to give *)
   (* let c = Ctx.make c in
@@ -711,42 +631,34 @@ struct
   let dim v =
     match v.value with
     |Coh c -> Coh.dim c
-    |Let t -> assert false
+    |Let _t -> assert false
 
 
   let ty v =
     match v.value with
     |Coh coh -> Coh.target coh
-    |Let t -> assert false
+    |Let _t -> assert false
 
   let ctx v =
     match v.value with
     |Coh c -> (Ctx.of_ps (Coh.ps c))
-    |Let t -> assert false
-
-  let print_list l = 
-    let rec aux l =
-      match l with
-      |[] -> ""
-      |i::l -> Printf.sprintf "%d %s" i (aux l)
-    in Printf.sprintf "[%s]" (aux l)
+    |Let _t -> assert false
 
   let check_equal v1 tm1 s1 v2 tm2 s2 src =
     match (v1.value, v2.value) with
-    |Coh c1, Coh c2 -> Sub.check_equal s1 s2
+    |Coh _, Coh _ -> Sub.check_equal s1 s2
     |Let t1, Let t2 -> Tm.check_equal src (Sub.apply_Tm s1 t1) (Sub.apply_Tm s2 t2)
-    |Let t, Coh c -> Tm.check_equal src (Sub.apply_Tm s1 t) tm2
-    |Coh c, Let t -> Tm.check_equal src tm1 (Sub.apply_Tm s2 t)
-
+    |Let t, Coh _ -> Tm.check_equal src (Sub.apply_Tm s1 t) tm2
+    |Coh _, Let t -> Tm.check_equal src tm1 (Sub.apply_Tm s2 t)
 end
-      
+
 and Ty
 : sig
-  type t = 
+  type t =
     | Obj
     | Path of DVar.t * t * Tm.t * Tm.t
 
-           
+
   val free_vars : Ctx.t -> t -> cvar list
   val to_string : t -> string
 
@@ -756,9 +668,9 @@ and Ty
 
   val check_src_var_in_dim : int -> CVar.t -> t -> unit
   val check_tgt_var_in_dim : int -> CVar.t -> t -> unit
-                                                     
+
   val dim : t -> int
-  val source : int -> t -> DVar.t list * Tm.t 
+  val source : int -> t -> DVar.t list * Tm.t
   val target : int -> t -> DVar.t list * Tm.t
   val sub_DVar : DVar.t list -> Ctx. t -> t -> DVar.t -> DVar.t -> t
 end
@@ -768,8 +680,6 @@ struct
   type t =
     | Obj
     | Path of DVar.t * t * Tm.t * Tm.t
-                                    
-  exception Unknown
 
   (** Free variables of a type. *)
   let rec free_vars ctx ty =
@@ -783,7 +693,7 @@ struct
     | Obj -> "*"
     | Path (i,t,u,v) ->
        Printf.sprintf "Path^%s (%s) (%s) (%s)" (DVar.to_string i) (to_string t) (Tm.to_string u) (Tm.to_string v)
-           
+
   (** Test for equality. *)
   let rec check_equal l ctx ty1 ty2 =
     let equal = check_equal l ctx in
@@ -813,29 +723,29 @@ struct
                          Path(j,a,t,u)
 
   (** Ensure that a type is well-formed in given context. *)
-  let rec check l ctx ty =
+  let check l ctx ty =
     match ty with
     |Obj -> ()
     |Path (i,ty,u,v) ->
       let tu = Tm.infer l ctx u in
       let tv = Tm.infer l ctx v in
       Ty.check (i::l) ctx ty;
-      check_equal l ctx (sub_DVar l ctx ty i DVar.zero) tu; 
+      check_equal l ctx (sub_DVar l ctx ty i DVar.zero) tu;
       check_equal l ctx (sub_DVar l ctx ty i DVar.one) tv
-                             
+
   (** Construct a type. *)
-  let rec make l c (e : Syntax.ty) =
+  let make l c (e : Syntax.ty) =
     match e with
     |Obj -> Obj
     |Path (i,ty,u,v) ->
       let u,tu = Tm.make l c u in
       let v, tv = Tm. make l c v in
-      let i = DVar.make i in 
+      let i = DVar.make i in
       let ty = Ty.make (i::l) c ty in
-      let _ = check_equal l c (sub_DVar l c ty i DVar.zero) tu in 
-      let _ = check_equal l c (sub_DVar l c ty i DVar.one) tv in 
+      let _ = check_equal l c (sub_DVar l c ty i DVar.zero) tu in
+      let _ = check_equal l c (sub_DVar l c ty i DVar.one) tv in
       Path (i,ty,u,v)
-    |letin_ty -> assert false
+    |_ -> assert false
 
   (** Dimension of a type. *)
   let rec dim ty =
@@ -845,53 +755,52 @@ struct
 
   let rec check_src_var_in_dim i v ty =
     match ty with
-    | Obj -> assert false 
+    | Obj -> assert false
     | Path(_,a,u,_) when dim a = i -> Tm.check_var v u;
     | Path (_,a,_,_) -> check_src_var_in_dim i v a
 
   let rec check_tgt_var_in_dim i v ty =
     match ty with
-    | Obj -> assert false 
+    | Obj -> assert false
     | Path(_,a,_,u) when dim a = i -> Tm.check_var v u;
-    | Path (_,a,_,_) -> check_tgt_var_in_dim i v a 
+    | Path (_,a,_,_) -> check_tgt_var_in_dim i v a
 
   let source i ty =
     let rec src i l ty =
-      (* debug "computing source of %s in dim %d" (to_string ty) i; *) 
+      (* debug "computing source of %s in dim %d" (to_string ty) i; *)
       match ty with
       | Obj -> assert false
-      | Path (j,a,u,_) when dim a = i ->
+      | Path (_,a,u,_) when dim a = i ->
          l,u
       | Path(j,a,_,_) ->
          src i (j::l) a
     in src i [] ty
-         
+
   let target i ty =
-    let rec tgt i l ty = 
+    let rec tgt i l ty =
       match ty with
       | Obj -> assert false
-      | Path (j,a,_,u) when i = dim a ->
+      | Path (_,a,_,u) when i = dim a ->
          l,u
       | Path(j,a,_,_) ->
          tgt i (j::l) a
-    in tgt i [] ty       
+    in tgt i [] ty
 end
 
 (** Operations on terms. *)
 and Tm
     :
 sig
-  type t = 
+  type t =
     | CVar of cvar
     | Sub of evar * EnvVal.t * Sub.t
     | App of t * DVar.t
-           
+
   val free_vars : Ctx.t -> t -> cvar list
   val to_string : t -> string
 
   val infer : DVar.t list -> Ctx.t -> t -> Ty.t
   val check_equal : Ctx.t -> t -> t -> unit
-  val check_type : DVar.t list -> Ctx.t -> t -> Ty.t -> unit
   val make : DVar.t list -> Ctx.t -> tm -> t * Ty.t
 
   val sub_DVar : DVar.t list -> Ctx.t -> t -> DVar.t -> DVar.t -> t
@@ -904,19 +813,17 @@ struct
     | CVar of cvar (** a context variable *)
     | Sub of evar * EnvVal.t * Sub.t (** a substituted environment variable *)
     | App of t * DVar.t
-                                 
-  exception Unknown
-             
+
   let rec free_vars ctx tm =
     match tm with
     | CVar x -> x :: (Ty.free_vars ctx (Ctx.ty_var ctx x))
     | Sub (_,_,sub) -> Sub.free_vars sub
     | App(t,_) -> free_vars ctx t
-                     
+
   let rec to_string tm =
     match tm with
     | CVar x -> CVar.to_string x
-    | Sub (x,v,s) ->
+    | Sub (_,v,s) ->
        let open EnvVal in
        Printf.sprintf "(%s %s)" (fst(v.print)) (Sub.to_string s)
     | App (t,i) -> Printf.sprintf "(%s %s)" (to_string t) (DVar.to_string i)
@@ -928,7 +835,7 @@ struct
       then
 	raise (NotEqual (to_string tm1, to_string tm2))
       else ()
-    | Sub(x,v1,s1),Sub(y,v2,s2) ->
+    | Sub(_,v1,s1),Sub(_,v2,s2) ->
        EnvVal.check_equal v1 tm1 s1 v2 tm2 s2 ctx
     | App(t,r), App(t',r') when r = r' ->
        check_equal ctx t t'
@@ -951,19 +858,12 @@ struct
        in
        let ty = infer l ctx t in
        match ty with
-       |Ty.Path(i,a,u,v) -> Ty.sub_DVar l ctx a i r
+       |Ty.Path(i,a,_,_) -> Ty.sub_DVar l ctx a i r
        |_ -> assert false
-
-
-  (** Check that term has given type. *)
-  let check_type l ctx e t  =
-    assert false
-  (* TODO : think which dim var list to give *)
-    (* Ty.check_equal l ctx (infer l ctx e) t *)
 
   (** Create a term from an expression. *)
   let rec make l c e =
-    (* debug "making term %s in context %s and dim vars %s" (string_of_tm e) (Ctx.to_string c) (DVar.print_list l); *) 
+    (* debug "making term %s in context %s and dim vars %s" (string_of_tm e) (Ctx.to_string c) (DVar.print_list l); *)
     match e,l with
     | Var v,_ ->
        let e = CVar (CVar.make v) in let ty = infer l c e in  e,ty
@@ -976,7 +876,7 @@ struct
       let s = List.map (Tm.make l c) s in
       let v,t = match t with
         |Var v ->
-          let v = EVar.make v in v, Env.val_var v 
+          let v = EVar.make v in v, Env.val_var v
         |_ -> assert false
       in let ty = EnvVal.ty t in
          let tar = EnvVal.ctx t in
@@ -984,12 +884,12 @@ struct
          let ty = Sub.apply_Ty s ty in
          Sub(v,t,s), ty
     | _ -> assert false
-    
+
   let rec sub_DVar l ctx tm i r =
     match tm with
     | CVar v -> CVar v
     | App (t,j) when i = j ->
-       let src,tgt = 
+       let src,tgt =
          match infer l ctx t with
          | Ty.Path(_,_,u,v) -> u,v
          | _ -> assert false
@@ -1008,20 +908,18 @@ struct
 
   let rec check_var v t =
     match t with
-    | CVar v' when v = v' -> () 
-    | CVar v' -> assert false
+    | CVar v' when v = v' -> ()
+    | CVar _ -> assert false
     | App (t,_) -> check_var v t
     | Sub _ -> assert false
 end
-  
+
 (** A coherence. *)
-and Coh    
+and Coh
     : sig
-  type t = private (PS.t * Ty.t)   
+  type t = private (PS.t * Ty.t)
 
   val mk : Ctx.t -> ty -> t
-  val to_string : t -> string
-  val check_equal : t -> t -> Ctx.t
   val ps : t -> PS.t
   val dim : t -> int
   val target : t -> Ty.t
@@ -1029,7 +927,7 @@ end
 =
 struct
   type t = PS.t * Ty.t
-	        
+
   let mk ps t =
     (* TODO : write a real typing rule *)
     let ty = Ty.make [] ps t in
@@ -1049,7 +947,7 @@ struct
           let l,tmt = Ty.target i ty in
           let _ = Tm.infer l (Ctx.of_ps pst) tmt in
           (* debug "in dim %d : \n the source ps is %s \n the source (term,ty) is (%s, %s)\n the target ps is %s \n the target (term,ty) is (%s, %s)"
-           * i (PS.to_string pss) (Tm.to_string tms) (Ty.to_string tys) 
+           * i (PS.to_string pss) (Tm.to_string tms) (Ty.to_string tys)
            *      (PS.to_string pst)(Tm.to_string tmt) (Ty.to_string tyt); *)
           if (List.included (PS.vars pss) (Tm.free_vars (Ctx.of_ps pss) tms)
               && List.included (PS.vars pst) (Tm.free_vars (Ctx.of_ps pst) tmt))
@@ -1057,23 +955,15 @@ struct
           else raise NotAlgebraic
       in check (n - 1); ps,ty
 
-  let to_string (ps,t) =
-    Printf.sprintf "Coh {%s |- %s}"
-      (PS.to_string ps)
-      (Ty.to_string t)
+  let ps (ps,_) = ps
 
-  let check_equal (ps1,t1) (ps2,t2) =
-    assert false
+  let target (_,t) = t
 
-  let ps (ps,t) = ps
-
-  let target (ps,t) = t
-
-  let dim (ps,t) = PS.dim ps
+  let dim (ps,_) = PS.dim ps
 end
 
 (** Operations on environments. *)
-and Env : sig 
+and Env : sig
 
   val add_let : var -> (var * ty) list -> tm -> string
   val add_let_check : var -> (var * ty) list -> tm -> ty -> string
@@ -1081,24 +971,22 @@ and Env : sig
   val init : unit -> unit
   val val_var : EVar.t -> EnvVal.t
 end
-  = GAssoc(EVar)(EnvVal) 
+  = GAssoc(EVar)(EnvVal)
 
-  
+
 type kTm = Tm.t
 type kTy = Ty.t
 
-type ctx = Ctx.t
-
 let init_env = Env.init
-                 
-let add_coh_env = Env.add_coh 
+
+let add_coh_env = Env.add_coh
 
 let add_let_env v c u =
   Env.add_let v c u
 
 let add_let_env_of_ty v c u t =
   Env.add_let_check v c u t
-               
+
 let mk_tm c e =
   let c = Ctx.make c in
   let e,t = Tm.make [] c e in
@@ -1106,10 +994,9 @@ let mk_tm c e =
 
 let mk_ctx c =
   let c = Ctx.make c in Ctx.to_string c
-    
-let mk_tm_of_ty c e t = assert false
+
+let mk_tm_of_ty _c _e _t = assert false
   (* let c = Ctx.make c in
    * let e,t' = Tm.make c e in
    * let t = Ty.make c t in
-   * Ty.check_equal c t' t *)              
-
+   * Ty.check_equal c t' t *)
