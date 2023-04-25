@@ -5,6 +5,7 @@ test (x : *) (y : *) (f : Path i * x y)
 test (x : *) (y : *) (h : Path i * x y) (z : *) (t : *) (k : Path i * z t) (f : Path i * x z) (g : Path i * y t ) (a : Path i (Path j * (h i) (k i)) f g)
 test (x : *) (f : Path i * x x)
 test (x : *) (f : Path i * x x) (a : Path i (Path j * (f i) (f i)) f f)
+
 # One cube context
 test (x : *) (z : *) (k : Path i * x z)
      (x' : *) (z' : *) (k' : Path i * x' z')
@@ -15,7 +16,7 @@ test (x : *) (z : *) (k : Path i * x z)
      (f : Path i * x y) (g : Path i * z t) (c : Path i (Path j * (k i) (l i)) f g)
      (f' : Path i * x' y') (g' : Path i * z' t') (d : Path i  (Path j * (k' i) (l' i)) f' g')
      (e : Path i (Path j * (hx i) (hy i)) f f') (h : Path i  (Path j * (hz i) (ht i)) g g')
-     (A : Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h) 
+     (A : Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h)
 
 
 #### Various coherences
@@ -112,7 +113,7 @@ coh assoc-sym
 #   |          |          |
 #   | connex2  |  assoc   |
 #   |          |          |
-#   |__________|__________|
+#   |__________|__________| ====== > id
 #   |          |          |
 #   |          |          |
 #   |assoc-sym | connex1  |
@@ -120,7 +121,7 @@ coh assoc-sym
 #   |__________|__________|
 #
 coh assoc-can
-    (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) : 
+    (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) :
     Path i
     	 (Path j
 	       (Path k *
@@ -145,7 +146,7 @@ coh assoc-can
 #    |_________|
 #       f(gh)
 #
-coh assoc-bis (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) : 
+coh assoc-bis (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) :
     Path i (Path j * ((id x) i) ((id w) i))
     (comp x z (comp x y f z g) w h)
     (comp x y f w (comp y z g w h))
@@ -183,11 +184,11 @@ coh hcomp3 (x : *) (x' : *) (hx : Path i * x x')
 coh equiv-assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w : *) (h : Path i * z w) :
     Path i
       	 (Path j
-      	       (Path k * (((id2 x x (id x)) i) j) (((id2 w w (id w)) i) j))     
+      	       (Path k * (((id2 x x (id x)) i) j) (((id2 w w (id w)) i) j))
       	 ((unit-l3 x z (comp x y f z g) w h) i) ((unit-r3 x y f w (comp y z g w h)) i))
     (hcomp3 x x (id x) x y f (id x) f (connexion2 x y f) z w h (comp x y f z g) (comp y z g w h) (assoc x y f z g w h) w w (id w) h (id w) (connexion1 z w h))
     (assoc-bis x y f z g w h)
-    
+
 
 
 # exchange law
@@ -195,10 +196,10 @@ coh equiv-assoc (x : *) (y : *) (f : Path i * x y) (z : *) (g : Path i * y z) (w
 #   |          |          |                    |          ||          |
 #   |          |          |                    |          ||          |
 #   |    a     |    b     |                    |    a     ||     b    |
-#   |          |          |                    |          ||          | 
+#   |          |          |                    |          ||          |
 #   |__________|__________|                    |__________||__________|
-#    _____________________     ------->        |          ||          | 
-#   |          |          |                    |          ||          |           
+#    _____________________     ------->        |          ||          |
+#   |          |          |                    |          ||          |
 #   |          |          |                    |    c     ||     d    |
 #   |    c     |    d     |                    |          ||          |
 #   |          |          |                    |__________||__________|
@@ -237,10 +238,10 @@ coh cube (x : *) (z : *) (k : Path i * x z)
 	 (e : Path i (Path j * (hx i) (hy i)) f f') (h : Path i  (Path j * (hz i) (ht i)) g g')
 	 (A : Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h) :
 	 Path i  (Path j  (Path k * ((a i) j) ((b i) j)) (c i) (d i)) e h
-	   
+
 
 ### Non-strict cube
 # test (x : *) (y : *) (h : Path i * x y) (z : *) (f : Path i * x z) (g : Path i * y z ) (a : Path i (Path j * (h i) z) f g)
 
-### Ill-defined cube 
+### Ill-defined cube
 # test (x : *) (f : Path i * x x) (y : * )(g : Path i * y y) (a : Path i (Path j * (f i) (g i)) f g)

@@ -1,0 +1,8 @@
+(ocamllex lexer)
+
+(menhir (modules parser))
+
+(executable
+ (public_name cubicatt)
+ (name main)
+ (libraries cubicatt))

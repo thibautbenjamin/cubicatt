@@ -1,0 +1,8 @@
+coh id (x : *) : Path i * x x
+
+coh id2 (x : *) (y : *) (f : Path i * x y) : Path i (Path j * ((id x) i) ((id y) i)) f f
+
+coh idf (x : *) (y : *) (f : Path i * x y) : Path i (Path j * (f i) (f i)) (id x) (id y)
+
+let id_id2 (x : *) = id2 x x (id x)
+let id_idf (x : *) = idf x x (id x)

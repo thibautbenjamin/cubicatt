@@ -3,7 +3,7 @@ module List = struct
 
   let remove x l =
     filter (fun y -> y <> x) l
-            
+
   let union l1 l2 =
     fold_left (fun l x -> if not (mem x l) then x::l else l) l1 l2
 
@@ -22,24 +22,24 @@ module List = struct
   let rec get i l =
     match l,i with
     |[],_ -> raise (Not_found)
-    |t::l,0 -> t
+    |t::_,0 -> t
     |_::l,i -> get (i-1) l
 
   let max l =
-    let rec aux l res =  
+    let rec aux l res =
       match l with
       |[] -> res
       |h::l when res < h -> aux l h
-      |h::l -> aux l res
+      |_::l -> aux l res
     in let h = List.hd l in aux l h
 
   let min l =
-    let rec aux l res =  
+    let rec aux l res =
       match l with
       |[] -> res
       |h::l when h < res   -> aux l h
-      |h::l -> aux l res
-    in let h = List.hd l in aux l h    
+      |_::l -> aux l res
+    in let h = List.hd l in aux l h
 
 
 end

@@ -1,6 +1,5 @@
 open Syntax
-open Common
-       
+
 module type EVar = sig
   type t
 
@@ -8,8 +7,8 @@ module type EVar = sig
   val new_fresh : unit -> t
   val to_var : t -> var
   val to_string : t -> string
-end                         
-                       
+end
+
 module type EVal = sig
   type t
 
@@ -19,16 +18,16 @@ module type EVal = sig
 
   val dim : t -> int
 end
-                     
+
 module GAssoc (A : EVar) (B : EVal) = struct
 
   type a = A.t
   type t = B.t
-             
+
   let env = ref ([] : (a * t) list)
 
   let init () = env := []
-                
+
   exception Found of t
 
   (** Add a variable together with the corresponding coherence*)
@@ -53,7 +52,7 @@ module GAssoc (A : EVar) (B : EVal) = struct
     env := (x,u)::!env;
     msg
 
-      
+
   let val_var x =
     List.assoc x !env
 end
